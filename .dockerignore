@@ -1,0 +1,11 @@
+# .dockerignore
+.env
+.git
+.gitignore
+*.sql
+setup_db_hosting.php
+test_db_direct.php
+debug_hosting.php
+seed.js
+node_modules
+README.md
