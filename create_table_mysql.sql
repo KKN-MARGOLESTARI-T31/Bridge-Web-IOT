@@ -1,8 +1,9 @@
 -- Script SQL untuk membuat tabel monitoring_logs (MySQL Version)
 -- Jalankan di phpMyAdmin atau MySQL Console
 
-CREATE DATABASE IF NOT EXISTS iot_database;
-USE iot_database;
+-- Database creation is handled by setup script or manually
+-- CREATE DATABASE IF NOT EXISTS iot_database;
+-- USE iot_database;
 
 CREATE TABLE IF NOT EXISTS monitoring_logs (
     id INT AUTO_INCREMENT PRIMARY KEY,

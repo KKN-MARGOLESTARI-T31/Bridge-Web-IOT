@@ -19,10 +19,9 @@ sudo apt install -y nginx mariadb-server php-fpm php-mysql php-json php-mbstring
 
 # 3. Configure Database
 echo -e "${GREEN}3. Setting up Database...${NC}"
-DB_NAME="iot_database"
-DB_USER="iot_user"
-# Generate a random password if not provided
-DB_PASS=$(openssl rand -base64 12)
+DB_NAME="iot_db"
+DB_USER="iot_mario"
+DB_PASS="ladusing"
 
 echo "Creating database '${DB_NAME}' and user '${DB_USER}'..."
 sudo mysql -e "CREATE DATABASE IF NOT EXISTS ${DB_NAME};"
