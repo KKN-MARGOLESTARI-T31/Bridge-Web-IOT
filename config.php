@@ -35,8 +35,16 @@ if ($db_url) {
     
     // Construct PDO DSN
     $dsn = "$db_driver:host=$db_host;port=$db_port;dbname=$db_name";
+    
+    // Parse and include query parameters (sslmode, channel_binding, etc.)
     if ($db_driver === 'pgsql') {
-        $dsn .= ";sslmode=require";
+        $sslmode = 'require'; // default
+        if (isset($parsed['query'])) {
+            parse_str($parsed['query'], $query_params);
+            $sslmode = $query_params['sslmode'] ?? 'require';
+            // Note: channel_binding is handled by connection, not DSN
+        }
+        $dsn .= ";sslmode=$sslmode";
     }
 } else {
     // Construct PDO DSN from individual fields

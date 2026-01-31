@@ -19,11 +19,47 @@ web-iot-receiver/
 ## Persyaratan Server
 
 - PHP 7.4 atau lebih baru
-- Ekstensi PHP: `mysqli`, `pdo_mysql`, `json`
+- Ekstensi PHP: 
+  - Untuk MySQL: `mysqli`, `pdo_mysql`, `json`
+  - Untuk PostgreSQL: `pgsql`, `pdo_pgsql`, `json`
 - Web Server (Apache/Nginx/IIS - Laragon Recommended)
-- Database: MySQL / MariaDB (Default: `iot_database`)
+- Database: MySQL / MariaDB / **PostgreSQL (Neon - Recommended)**
 
-## Setup Database (MySQL)
+## Setup Database
+
+### Option 1: PostgreSQL - Neon (RECOMMENDED) ⭐
+
+**Neon** adalah serverless PostgreSQL yang gratis dan mudah digunakan.
+
+**Quick Setup:**
+
+1. **Sign up** di [neon.tech](https://neon.tech)
+2. **Create project** dan pilih region terdekat (Singapore untuk Indonesia)
+3. **Copy connection string** (gunakan "Pooled connection")
+4. **Setup file `.env`:**
+   ```bash
+   cp .env.example .env
+   # Edit .env dan isi DATABASE_URL dengan connection string dari Neon
+   ```
+5. **Install ekstensi PostgreSQL:**
+   ```bash
+   # Ubuntu/Debian
+   sudo apt-get install php-pgsql
+   sudo systemctl restart apache2
+   ```
+6. **Setup tables:**
+   ```bash
+   php setup_db_neon.php
+   ```
+7. **Test connection:**
+   ```bash
+   php test_neon.php
+   # atau buka di browser: http://localhost/test_neon.php
+   ```
+
+📖 **Panduan lengkap:** Lihat [SETUP_NEON.md](SETUP_NEON.md)
+
+### Option 2: MySQL (Local/Traditional Hosting)
 
 1. Buat database bernama `iot_database` (atau sesuaikan di `.env`).
 2. Import script SQL: `create_table_mysql.sql`.
