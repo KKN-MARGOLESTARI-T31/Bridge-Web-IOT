@@ -27,6 +27,10 @@ $db_driver = $_ENV['DB_DRIVER'] ?? 'mysql'; // 'mysql' or 'pgsql'
 if ($db_url) {
     $parsed = parse_url($db_url);
     $db_driver = $parsed['scheme'] ?? 'pgsql';
+    // CRITICAL FIX: PDO uses 'pgsql' not 'postgresql'
+    if ($db_driver === 'postgresql') {
+        $db_driver = 'pgsql';
+    }
     $db_host = $parsed['host'] ?? '';
     $db_port = $parsed['port'] ?? ($db_driver === 'mysql' ? 3306 : 5432);
     $db_user = $parsed['user'] ?? '';

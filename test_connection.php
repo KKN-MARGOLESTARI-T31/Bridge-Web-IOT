@@ -52,6 +52,10 @@ echo "\n";
 // Build DSN
 echo "3. Building PDO DSN...\n";
 $db_driver = $parsed['scheme'] ?? 'pgsql';
+// IMPORTANT: PDO uses 'pgsql' not 'postgresql'
+if ($db_driver === 'postgresql') {
+    $db_driver = 'pgsql';
+}
 $db_host = $parsed['host'] ?? '';
 $db_port = $parsed['port'] ?? 5432;
 $db_user = $parsed['user'] ?? '';
