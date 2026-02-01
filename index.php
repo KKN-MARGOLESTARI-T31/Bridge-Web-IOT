@@ -28,16 +28,34 @@
         <?php
         require_once 'config.php';
         if (isset($pdo)) {
-            echo '<span class="status success">CONNECTED (MySQL) ✅</span>';
+            $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+            $driver_label = strtoupper($driver);
+            echo '<span class="status success">CONNECTED (' . $driver_label . ') ✅</span>';
         } else {
             echo '<span class="status error">FAILED ❌</span>';
         }
         ?>
         </p>
 
-        <p>MySQL Driver: 
+        <p>Available PDO Drivers: 
         <?php
         $drivers = PDO::getAvailableDrivers();
+        echo '<span class="status success">' . implode(', ', $drivers) . '</span>';
+        ?>
+        </p>
+        
+        <p>PostgreSQL Driver: 
+        <?php
+        if (in_array('pgsql', $drivers)) {
+            echo '<span class="status success">INSTALLED ✅</span>';
+        } else {
+            echo '<span class="status error">MISSING ❌</span> (PDO_PGSQL)';
+        }
+        ?>
+        </p>
+        
+        <p>MySQL Driver: 
+        <?php
         if (in_array('mysql', $drivers)) {
             echo '<span class="status success">INSTALLED ✅</span>';
         } else {
@@ -89,6 +107,36 @@
                     echo "</tbody></table>";
                 } else {
                     echo "<p>Belum ada data masuk.</p>";
+                }
+            } catch (Exception $e) {
+                echo "<p class='error'>Error mengambil data: " . $e->getMessage() . "</p>";
+            }
+        }
+        ?>
+    </div>
+
+    <div class="card">
+        <h2>Recent Water Level Readings</h2>
+        <?php
+        if (isset($pdo)) {
+            try {
+                // Gunakan nama kolom eksplisit untuk menghindari error "cached plan" saat schema berubah
+                $stmt = $pdo->query("SELECT id, level, timestamp FROM water_level_readings ORDER BY timestamp DESC LIMIT 5");
+                $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                
+                if (count($rows) > 0) {
+                    echo "<table border='1' cellpadding='10' style='border-collapse: collapse; width: 100%;'>";
+                    echo "<thead><tr><th>Time</th><th>Level (cm)</th></tr></thead>";
+                    echo "<tbody>";
+                    foreach ($rows as $row) {
+                        echo "<tr>";
+                        echo "<td>" . $row['timestamp'] . "</td>";
+                        echo "<td>" . $row['level'] . "</td>";
+                        echo "</tr>";
+                    }
+                    echo "</tbody></table>";
+                } else {
+                    echo "<p>Belum ada data water level masuk.</p>";
                 }
             } catch (Exception $e) {
                 echo "<p class='error'>Error mengambil data: " . $e->getMessage() . "</p>";
