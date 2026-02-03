@@ -133,9 +133,10 @@ try {
             // Generate IDs
             $control_id = 'pump_' . $deviceId_clean;
             
-            // TRICK: Set updated_at mundur 20 detik
-            // Supaya update ini tidak dianggap "User Activity"
-            $safe_timestamp = "NOW() - INTERVAL '20 seconds'";
+            // TRICK: Set updated_at ke NOW() (Jangan dimundurkan!)
+            // Biarkan status hardware ON bertahan minimal 15 detik (sesuai threshold command_age)
+            // Ini memberi waktu relay mekanik untuk stabil
+            $safe_timestamp = "NOW()";
             
             // Upsert with safe timestamp
             $sql_upsert = "INSERT INTO device_controls (id, \"deviceId\", mode, command, \"updatedAt\", \"createdAt\", \"actionBy\", reason) 

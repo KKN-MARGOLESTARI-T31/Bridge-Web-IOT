@@ -1,6 +1,6 @@
 /**
  * ESP32 Arduino Code - Bi-Directional Sync Example
- * Update your ESP32 code to send pump_status and handle JSON responses
+ * Updated with "Sticky State" Logic
  */
 
 #include <WiFi.h>
@@ -20,12 +20,15 @@ const char* wifi_password = "YOUR_WIFI_PASSWORD";
 // Device ID
 const char* deviceId = "ESP32-001";
 
+// Internal State Variable (Sticky Logic)
+bool pumpStatus = false; 
+
 void setup() {
   Serial.begin(115200);
   
   // Setup pins
   pinMode(PUMP_PIN, OUTPUT);
-  digitalWrite(PUMP_PIN, LOW); // Pompa mati saat startup
+  digitalWrite(PUMP_PIN, LOW); // Pompa mati saat startup (Active High assumption)
   
   // Connect to WiFi
   WiFi.begin(wifi_ssid, wifi_password);
@@ -43,25 +46,32 @@ void loop() {
   float waterLevel = readWaterLevel();
   int signalStrength = WiFi.RSSI();
   
-  // Read current pump status (CRITICAL untuk bi-directional sync!)
-  bool pumpIsOn = digitalRead(PUMP_PIN);
+  // LOGIKA STATE HOLDING (PENTING!)
+  // Membaca status fisik ATAU status internal. 
+  // Jika Active High: (digitalRead == HIGH) || pumpStatus
+  // Jika Active Low: (digitalRead == LOW) || pumpStatus
+  // Asumsi di sini Active HIGH (sesuai setup awal code ini).
+  bool pumpIsOn = (digitalRead(PUMP_PIN) == HIGH) || pumpStatus;
   
   // Send data to server
   String command = sendDataToServer(phValue, batteryLevel, waterLevel, signalStrength, pumpIsOn);
   
   // Process command from server
   if (command == "ON") {
-    digitalWrite(PUMP_PIN, HIGH);
+    digitalWrite(PUMP_PIN, HIGH); // Nyalakan (Active High)
+    pumpStatus = true; // Kunci status internal jadi TRUE
     Serial.println("Pompa NYALA (from server)");
+    
   } else if (command == "OFF") {
-    digitalWrite(PUMP_PIN, LOW);
+    digitalWrite(PUMP_PIN, LOW); // Matikan (Active High)
+    pumpStatus = false; // Kunci status internal jadi FALSE
     Serial.println("Pompa MATI (from server)");
   }
   
-  delay(10000); // Kirim data setiap 10 detik
+  delay(5000); // Polling setiap 5 detik (lebih responsif dari 10s)
 }
 
-String sendDataToServer(float ph, float battery, float level, int signal, bool pumpStatus) {
+String sendDataToServer(float ph, float battery, float level, int signal, bool currentStatus) {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("WiFi not connected!");
     return "ERROR";
@@ -77,8 +87,8 @@ String sendDataToServer(float ph, float battery, float level, int signal, bool p
   doc["battery"] = battery;
   doc["level"] = level;
   doc["signal"] = signal;
-  doc["deviceId"] = deviceId; // defined in global scope
-  doc["pump_status"] = pumpStatus; // IMPORTANT!
+  doc["deviceId"] = deviceId;
+  doc["pump_status"] = currentStatus; // Kirim status gabungan (Fisik + Internal)
   
   String jsonString;
   serializeJson(doc, jsonString);
@@ -92,10 +102,9 @@ String sendDataToServer(float ph, float battery, float level, int signal, bool p
     String response = http.getString();
     Serial.println("Response: " + response);
     
-    // Robust Parsing Logic (User Recommendation)
-    response.toUpperCase(); // Case insensitive
+    // Robust Parsing Logic
+    response.toUpperCase(); 
     
-    // Check for explicit JSON field first if possible, or string search
     DynamicJsonDocument responseDoc(512);
     DeserializationError error = deserializeJson(responseDoc, response);
     
@@ -103,7 +112,7 @@ String sendDataToServer(float ph, float battery, float level, int signal, bool p
        String cmd = responseDoc["command"].as<String>();
        finalCommand = cmd;
     } else {
-       // Fallback text search if JSON parsing fails
+       // Fallback
        if (response.indexOf("\"COMMAND\":\"ON\"") >= 0 || response.indexOf("ON") >= 0) {
            if (response.indexOf("OFF") == -1) finalCommand = "ON";
        }
@@ -120,37 +129,7 @@ String sendDataToServer(float ph, float battery, float level, int signal, bool p
   return finalCommand;
 }
 
-// In loop(): Update hardware state immediately based on command
-/*
-  // Process command from server
-  if (command == "ON") {
-    digitalWrite(PUMP_PIN, LOW); // Active Low Relay (Check your hardware!)
-    // Update pump status variable immediately for next loop
-    // pumpStatus = true; 
-  } else if (command == "OFF") {
-    digitalWrite(PUMP_PIN, HIGH);
-    // pumpStatus = false;
-  }
-*/
-
-// Helper functions untuk baca sensor
-float readPH() {
-  int analogValue = analogRead(pH_SENSOR_PIN);
-  // Konversi analog ke pH (sesuaikan dengan kalibrasi sensor Anda)
-  float voltage = analogValue * (3.3 / 4095.0);
-  float phValue = 3.5 * voltage; // Example formula, adjust based on your sensor
-  return phValue;
-}
-
-float readBattery() {
-  // Baca voltage baterai (sesuaikan dengan hardware Anda)
-  // Example: 0-100%
-  return 85.5;
-}
-
-float readWaterLevel() {
-  int analogValue = analogRead(LEVEL_SENSOR_PIN);
-  // Konversi ke cm atau %
-  float level = (analogValue / 4095.0) * 100.0;
-  return level;
-}
+// Helper functions (Dummy)
+float readPH() { return 7.0; }
+float readBattery() { return 85.0; }
+float readWaterLevel() { return 50.0; }
