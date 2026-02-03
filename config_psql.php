@@ -60,6 +60,43 @@ function psql_fetch_value($sql) {
     
     unlink($tmpFile);
     
-    return trim($output);
+    // Fix PHP 8.1+ deprecation warning when output is null
+    return trim($output ?? '');
+}
+
+/**
+ * Fetch a single row as associative array (SELECT)
+ * Returns array with column names as keys
+ */
+function psql_fetch_row($sql) {
+    global $dbUrl;
+    
+    // Use CSV format with headers to parse columns
+    $tmpFile = tempnam(sys_get_temp_dir(), 'sql_');
+    file_put_contents($tmpFile, $sql);
+    
+    $cmd = sprintf('psql "%s" --csv -f "%s"', $dbUrl, $tmpFile);
+    $output = shell_exec($cmd);
+    
+    unlink($tmpFile);
+    
+    if (empty($output)) {
+        return null;
+    }
+    
+    // Parse CSV output
+    $lines = explode("\n", trim($output));
+    if (count($lines) < 2) {
+        return null; // No data row
+    }
+    
+    // First line is headers, second is data
+    $headers = str_getcsv($lines[0]);
+    $values = str_getcsv($lines[1]);
+    
+    // Combine into associative array
+    $result = array_combine($headers, $values);
+    
+    return $result ?: null;
 }
 ?>

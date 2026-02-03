@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Web IoT Receiver - Status</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6; color: #333; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; line-height: 1.6; color: #333; }
         h1 { color: #0070f3; border-bottom: 2px solid #eaeaea; pb: 10px; }
         .card { border: 1px solid #eaeaea; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .status { font-weight: bold; }
@@ -15,6 +15,11 @@
         ul { padding-left: 20px; }
         li { margin-bottom: 10px; }
         .endpoint { font-weight: bold; color: #0070f3; }
+        table { border-collapse: collapse; width: 100%; font-size: 14px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #4CAF50; color: white; position: sticky; top: 0; }
+        tr:nth-child(even) { background-color: #f2f2f2; }
+        tr:hover { background-color: #ddd; }
     </style>
 </head>
 <body>
@@ -53,16 +58,6 @@
         }
         ?>
         </p>
-        
-        <p>MySQL Driver: 
-        <?php
-        if (in_array('mysql', $drivers)) {
-            echo '<span class="status success">INSTALLED ✅</span>';
-        } else {
-            echo '<span class="status error">MISSING ❌</span> (PDO_MYSQL)';
-        }
-        ?>
-        </p>
     </div>
 
     <div class="card">
@@ -70,73 +65,96 @@
         <ul>
             <li>
                 <span class="endpoint">POST /input.php</span><br>
-                Endpoint utama untuk ESP32 (Form Data).<br>
-                Author: <code>ESP32</code>
+                Main IoT data ingestion endpoint (JSON or Form Data).<br>
+                Accepts: <code>ph, battery, level, temperature, signal, deviceId</code>
             </li>
             <li>
-                <span class="endpoint">GET /api/get-latest.php</span><br>
-                Untuk melihat data JSON terakhir.
-            </li>
-            <li>
-                <span class="endpoint">POST /api/save-ph.php</span><br>
-                Endpoint khusus data pH (JSON).
+                <span class="endpoint">GET /read_database_structure.php</span><br>
+                View actual database schema and structure.
             </li>
         </ul>
     </div>
 
     <div class="card">
-        <h2>Recent Data (Monitoring Logs)</h2>
+        <h2>Pump Control Status</h2>
         <?php
         if (isset($pdo)) {
             try {
-                $stmt = $pdo->query("SELECT * FROM monitoring_logs ORDER BY created_at DESC LIMIT 5");
-                $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                // Get latest pump command from device_controls
+                // Production schema: id, deviceId, mode, command, updatedAt, createdAt, actionBy, reason
+                $stmt = $pdo->query('SELECT id, "deviceId", mode, command, "updatedAt", "createdAt", "actionBy", reason 
+                                     FROM device_controls 
+                                     WHERE mode = \'PUMP\' 
+                                     ORDER BY "updatedAt" DESC LIMIT 1');
+                $pumpData = $stmt->fetch(PDO::FETCH_ASSOC);
                 
-                if (count($rows) > 0) {
-                    echo "<table border='1' cellpadding='10' style='border-collapse: collapse; width: 100%;'>";
-                    echo "<thead><tr><th>Time</th><th>pH</th><th>Battery</th><th>Location</th></tr></thead>";
-                    echo "<tbody>";
-                    foreach ($rows as $row) {
-                        echo "<tr>";
-                        echo "<td>" . $row['created_at'] . "</td>";
-                        echo "<td>" . $row['ph_value'] . "</td>";
-                        echo "<td>" . $row['battery_level'] . "%</td>";
-                        echo "<td>" . $row['location'] . "</td>";
-                        echo "</tr>";
+                if ($pumpData) {
+                    $command = $pumpData['command'];
+                    $deviceId = $pumpData['deviceId'] ?? 'N/A';
+                    $updatedAt = $pumpData['updatedAt'];
+                    $actionBy = $pumpData['actionBy'] ?? 'System';
+                    $reason = $pumpData['reason'] ?? '-';
+                    
+                    // Display status based on command
+                    if ($command === 'ON' || $command === 'POMPA_ON') {
+                        echo '<p style="font-size: 20px;">Status: <span class="status success">✅ POMPA ON</span></p>';
+                    } else if ($command === 'OFF' || $command === 'POMPA_OFF') {
+                        echo '<p style="font-size: 20px;">Status: <span class="status error">❌ POMPA OFF</span></p>';
+                    } else {
+                        echo '<p style="font-size: 20px;">Status: <span class="status">' . htmlspecialchars($command) . '</span></p>';
                     }
-                    echo "</tbody></table>";
+                    
+                    echo '<p><strong>Device:</strong> ' . htmlspecialchars($deviceId) . '</p>';
+                    echo '<p><strong>Last updated:</strong> ' . $updatedAt . '</p>';
+                    echo '<p><strong>Action by:</strong> ' . htmlspecialchars($actionBy) . '</p>';
+                    if ($reason !== '-') {
+                        echo '<p><strong>Reason:</strong> ' . htmlspecialchars($reason) . '</p>';
+                    }
                 } else {
-                    echo "<p>Belum ada data masuk.</p>";
+                    echo '<p class="error">⚠️ Tidak ada command pump tersedia.</p>';
+                    echo '<p style="font-size: 14px;">Tabel <code>device_controls</code> kosong atau belum ada data untuk mode PUMP.</p>';
+                    echo '<p>Jalankan SQL ini di Neon SQL Editor untuk insert default:</p>';
+                    echo '<pre style="background: #f4f4f4; padding: 10px; border-radius: 4px;">INSERT INTO device_controls (id, "deviceId", mode, command, "updatedAt")
+VALUES (\'pump_default\', \'ALL\', \'PUMP\', \'OFF\', NOW());</pre>';
                 }
             } catch (Exception $e) {
-                echo "<p class='error'>Error mengambil data: " . $e->getMessage() . "</p>";
+                echo '<p class="error">Error mengambil status pump: ' . $e->getMessage() . '</p>';
             }
         }
         ?>
     </div>
 
     <div class="card">
-        <h2>Recent Water Level Readings</h2>
+        <h2>All Monitoring Data</h2>
         <?php
         if (isset($pdo)) {
             try {
-                // Gunakan nama kolom eksplisit untuk menghindari error "cached plan" saat schema berubah
-                $stmt = $pdo->query("SELECT id, level, timestamp FROM water_level_readings ORDER BY timestamp DESC LIMIT 5");
+                // Query with actual production schema columns
+                // NOTE: "deviceId" must be quoted because it's case-sensitive in PostgreSQL
+                $stmt = $pdo->query('SELECT id, battery_level, ph_value, level, temperature, signal_strength, created_at, "deviceId" FROM monitoring_logs ORDER BY created_at DESC');
                 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 
                 if (count($rows) > 0) {
-                    echo "<table border='1' cellpadding='10' style='border-collapse: collapse; width: 100%;'>";
-                    echo "<thead><tr><th>Time</th><th>Level (cm)</th></tr></thead>";
+                    echo "<p><strong>Total Records: " . count($rows) . "</strong></p>";
+                    echo "<div style='overflow-x: auto;'>";
+                    echo "<table>";
+                    echo "<thead><tr><th>Device ID</th><th>Time</th><th>pH</th><th>Battery (%)</th><th>Level (cm)</th><th>Temp (°C)</th><th>Signal</th></tr></thead>";
                     echo "<tbody>";
                     foreach ($rows as $row) {
                         echo "<tr>";
-                        echo "<td>" . $row['timestamp'] . "</td>";
-                        echo "<td>" . $row['level'] . "</td>";
+                        echo "<td>" . htmlspecialchars($row['deviceId'] ?? '-') . "</td>";
+                        echo "<td>" . $row['created_at'] . "</td>";
+                        echo "<td>" . number_format($row['ph_value'], 2) . "</td>";
+                        echo "<td>" . number_format($row['battery_level'], 1) . "%</td>";
+                        echo "<td>" . number_format($row['level'], 1) . "</td>";
+                        echo "<td>" . ($row['temperature'] ? number_format($row['temperature'], 1) : '-') . "</td>";
+                        echo "<td>" . ($row['signal_strength'] ?? '-') . "</td>";
                         echo "</tr>";
                     }
                     echo "</tbody></table>";
+                    echo "</div>";
                 } else {
-                    echo "<p>Belum ada data water level masuk.</p>";
+                    echo "<p>Belum ada data masuk.</p>";
                 }
             } catch (Exception $e) {
                 echo "<p class='error'>Error mengambil data: " . $e->getMessage() . "</p>";
