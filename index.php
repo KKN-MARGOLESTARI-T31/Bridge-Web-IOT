@@ -80,8 +80,7 @@
         <?php
         if (isset($pdo)) {
             try {
-                // Get latest pump command from device_controls
-                // Production schema: id, deviceId, mode, command, updatedAt, createdAt, actionBy, reason
+                // Get latest pump command from device_controls (Official Command Status)
                 $stmt = $pdo->query('SELECT id, "deviceId", mode, command, "updatedAt", "createdAt", "actionBy", reason 
                                      FROM device_controls 
                                      WHERE mode = \'PUMP\' 
@@ -89,33 +88,33 @@
                 $pumpData = $stmt->fetch(PDO::FETCH_ASSOC);
                 
                 if ($pumpData) {
-                    $command = $pumpData['command'];
+                    $command = strtoupper($pumpData['command']); // Ensure uppercase
                     $deviceId = $pumpData['deviceId'] ?? 'N/A';
                     $updatedAt = $pumpData['updatedAt'];
                     $actionBy = $pumpData['actionBy'] ?? 'System';
-                    $reason = $pumpData['reason'] ?? '-';
                     
                     // Display status based on command
-                    if ($command === 'ON' || $command === 'POMPA_ON') {
-                        echo '<p style="font-size: 20px;">Status: <span class="status success">✅ POMPA ON</span></p>';
-                    } else if ($command === 'OFF' || $command === 'POMPA_OFF') {
-                        echo '<p style="font-size: 20px;">Status: <span class="status error">❌ POMPA OFF</span></p>';
+                    if ($command === 'ON' || $command === 'TRUE') {
+                        echo '<div style="background:#e8f5e9; padding:15px; border-radius:8px; border-left: 5px solid #2e7d32;">';
+                        echo '<h3 style="margin:0; color:#2e7d32;">✅ POMPA MENYALA (ON)</h3>';
+                        echo '<p style="margin:5px 0 0;">Last Command: <strong>ON</strong></p>';
+                        echo '</div>';
                     } else {
-                        echo '<p style="font-size: 20px;">Status: <span class="status">' . htmlspecialchars($command) . '</span></p>';
+                        echo '<div style="background:#ffebee; padding:15px; border-radius:8px; border-left: 5px solid #c62828;">';
+                        echo '<h3 style="margin:0; color:#c62828;">❌ POMPA MATI (OFF)</h3>';
+                        echo '<p style="margin:5px 0 0;">Last Command: <strong>OFF</strong></p>';
+                        echo '</div>';
                     }
                     
-                    echo '<p><strong>Device:</strong> ' . htmlspecialchars($deviceId) . '</p>';
-                    echo '<p><strong>Last updated:</strong> ' . $updatedAt . '</p>';
-                    echo '<p><strong>Action by:</strong> ' . htmlspecialchars($actionBy) . '</p>';
-                    if ($reason !== '-') {
-                        echo '<p><strong>Reason:</strong> ' . htmlspecialchars($reason) . '</p>';
-                    }
+                    echo '<p style="margin-top:10px; font-size:0.9em; color:#666;">
+                            <strong>Device:</strong> ' . htmlspecialchars($deviceId) . ' | 
+                            <strong>Updated:</strong> ' . $updatedAt . ' |
+                            <strong>By:</strong> ' . htmlspecialchars($actionBy) . '
+                          </p>';
+
                 } else {
-                    echo '<p class="error">⚠️ Tidak ada command pump tersedia.</p>';
-                    echo '<p style="font-size: 14px;">Tabel <code>device_controls</code> kosong atau belum ada data untuk mode PUMP.</p>';
-                    echo '<p>Jalankan SQL ini di Neon SQL Editor untuk insert default:</p>';
-                    echo '<pre style="background: #f4f4f4; padding: 10px; border-radius: 4px;">INSERT INTO device_controls (id, "deviceId", mode, command, "updatedAt")
-VALUES (\'pump_default\', \'ALL\', \'PUMP\', \'OFF\', NOW());</pre>';
+                    echo '<p class="error">⚠️ Belum ada status pompa.</p>';
+                    echo '<p>Sistem menunggu data pertama dari ESP32...</p>';
                 }
             } catch (Exception $e) {
                 echo '<p class="error">Error mengambil status pump: ' . $e->getMessage() . '</p>';
@@ -131,16 +130,19 @@ VALUES (\'pump_default\', \'ALL\', \'PUMP\', \'OFF\', NOW());</pre>';
             try {
                 // Query with actual production schema columns
                 // NOTE: "deviceId" must be quoted because it's case-sensitive in PostgreSQL
-                $stmt = $pdo->query('SELECT id, battery_level, ph_value, level, temperature, signal_strength, created_at, "deviceId" FROM monitoring_logs ORDER BY created_at DESC');
+                $stmt = $pdo->query('SELECT id, battery_level, ph_value, level, temperature, signal_strength, created_at, "deviceId", pump_status FROM monitoring_logs ORDER BY created_at DESC');
                 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 
                 if (count($rows) > 0) {
                     echo "<p><strong>Total Records: " . count($rows) . "</strong></p>";
                     echo "<div style='overflow-x: auto;'>";
                     echo "<table>";
-                    echo "<thead><tr><th>Device ID</th><th>Time</th><th>pH</th><th>Battery (%)</th><th>Level (cm)</th><th>Temp (°C)</th><th>Signal</th></tr></thead>";
+                    echo "<thead><tr><th>Device ID</th><th>Time</th><th>pH</th><th>Battery (%)</th><th>Level (cm)</th><th>Temp (°C)</th><th>Signal</th><th>Pump</th></tr></thead>";
                     echo "<tbody>";
                     foreach ($rows as $row) {
+                        $pStatus = $row['pump_status'] ?? '-';
+                        $pColor = ($pStatus === 'true' || $pStatus === 'ON') ? 'color:green;font-weight:bold;' : 'color:red;';
+                        
                         echo "<tr>";
                         echo "<td>" . htmlspecialchars($row['deviceId'] ?? '-') . "</td>";
                         echo "<td>" . $row['created_at'] . "</td>";
@@ -149,6 +151,7 @@ VALUES (\'pump_default\', \'ALL\', \'PUMP\', \'OFF\', NOW());</pre>';
                         echo "<td>" . number_format($row['level'], 1) . "</td>";
                         echo "<td>" . ($row['temperature'] ? number_format($row['temperature'], 1) : '-') . "</td>";
                         echo "<td>" . ($row['signal_strength'] ?? '-') . "</td>";
+                        echo "<td style='" . $pColor . "'>" . htmlspecialchars($pStatus) . "</td>";
                         echo "</tr>";
                     }
                     echo "</tbody></table>";
